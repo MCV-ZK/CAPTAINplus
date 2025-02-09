@@ -28,43 +28,20 @@ def memory_protection(permission: int):
         elif permission == 7:
             return ['PROT_READ', 'PROT_WRITE', 'PROT_EXEC']
 
-def parse_event_cadets(node_buffer, datum, cdm_version):
+def parse_event_trace(node_buffer, datum, cdm_version):
     event = Event(datum['uuid'], datum['timestampNanos'])
     datum['type'] = cdm_events[datum['type']]
     event.properties = datum['properties']['map']
 
-    ##### Get Related Nodes #####
     if isinstance(datum['subject'], dict):
-        event.src = datum['subject']['com.bbn.tc.schema.avro.cdm{}.UUID'.format(cdm_version)]
+        event.src = list(datum['subject'].values())[0]
     
     if isinstance(datum['predicateObject'], dict):
-        event.dest = datum['predicateObject']['com.bbn.tc.schema.avro.cdm{}.UUID'.format(cdm_version)]
+        event.dest = list(datum['predicateObject'].values())[0]
 
     if isinstance(datum['predicateObject2'], dict):
-        event.dest2 = datum['predicateObject2']['com.bbn.tc.schema.avro.cdm{}.UUID'.format(cdm_version)]
+        event.dest2 = list(datum['predicateObject2'].values())[0]
 
-    ##### Check if the nodes get updated #####
-    node_updates = {}
-    if isinstance(datum['predicateObjectPath'], dict):
-        event.obj_path = datum['predicateObjectPath']['string']
-        if event.dest in node_buffer and node_buffer[event.dest].path != event.obj_path:
-            node_buffer[event.dest].name = event.obj_path
-            node_buffer[event.dest].path = event.obj_path
-            node_updates[event.dest] = {'name':event.obj_path}
-
-    if isinstance(datum['predicateObject2Path'], dict):
-        event.obj2_path = datum['predicateObject2Path']['string']
-        if event.dest2 in node_buffer and node_buffer[event.dest2].path != event.obj2_path:
-            node_buffer[event.dest2].name = event.obj2_path
-            node_buffer[event.dest2].path = event.obj2_path
-            node_updates[event.dest2] = {'name':event.obj2_path}
-
-    if 'exec' in event.properties:
-        if event.src in node_buffer and node_buffer[event.src].processName != event.properties['exec']:
-            node_buffer[event.src].processName = event.properties['exec']
-            node_updates[event.src] = {'exec':event.properties['exec']}
-
-    ##### Begin Parsing Event Type #####
     try:
         if datum['type'] in READ_SET:
             assert node_buffer.get(event.src, None) and node_buffer.get(event.dest, None)
@@ -75,45 +52,39 @@ def parse_event_cadets(node_buffer, datum, cdm_version):
         elif datum['type'] in INJECT_SET:
             event.type = 'inject'
         elif datum['type'] in CHMOD_SET:
-            if datum['name']['string'] == 'aue_chmod':
-                assert node_buffer.get(event.src, None) and node_buffer.get(event.dest, None)
-                event.type = 'chmod'
-                event.parameters = int(datum['parameters']['array'][0]['valueBytes']['bytes'], 16)
-            else:
-                return None, node_updates  
+            assert node_buffer.get(event.src, None) and node_buffer.get(event.dest, None)
+            event.type = 'chmod'
+            event.parameters = int(event.properties['mode'], 8)
         elif datum['type'] in SET_UID_SET:
-            if datum['name']['string'] in {'aue_setuid'}:
-                assert node_buffer.get(event.src, None)
-                event.dest = None
+            assert node_buffer.get(event.src, None)
+            if datum['properties']['map']['operation'] == 'setuid':
                 event.type = 'set_uid'
-                event.parameters = int(datum['properties']['map']['arg_uid'])
+                event.src = event.dest
+                event.dest = None
+                event.parameters = node_buffer.get(event.src, None).owner
             else:
-                return None, node_updates
+                return None
         elif datum['type'] in {cdm_events['EVENT_EXECUTE']}:
             assert node_buffer.get(event.src, None) and node_buffer.get(event.dest, None)
-            event.parameters = datum['properties']['map']['cmdLine']
-            event.type = 'execve'
+            event.type = 'update_process'
         elif datum['type'] in {cdm_events['EVENT_LOADLIBRARY']}:
-            pdb.set_trace()
-            return None, node_updates
+            assert node_buffer.get(event.src, None) and node_buffer.get(event.dest, None)
+            event.type = 'execve'
         elif datum['type'] in {cdm_events['EVENT_MMAP']}:
-            if node_buffer[event.dest].isFile():
-                assert node_buffer.get(event.src, None) and node_buffer.get(event.dest, None)
+            assert node_buffer.get(event.src, None)
+            if node_buffer.get(event.dest, None) and node_buffer[event.dest].isFile():
                 event.type = 'load'
+                event.dest2 = None
             else:
-                pdb.set_trace()
                 event.type = 'mmap'
+                event.dest = None
+                event.dest2 = None
                 event.parameters = memory_protection(eval(event.properties['protection']))
         elif datum['type'] in CREATE_SET:
             assert node_buffer.get(event.src, None) and node_buffer.get(event.dest, None)
-            assert datum['name']['string'] not in {'aue_socketpair', 'aue_mkdirat'}
-            if node_buffer.get(event.src, None) and node_buffer.get(event.dest, None):
-                event.type = 'create'
-            else:
-                return None, node_updates
+            event.type = 'create'
         elif datum['type'] in RENAME_SET:
             assert node_buffer.get(event.src, None) and node_buffer.get(event.dest, None) and node_buffer.get(event.dest2, None)
-            event.parameters = datum['predicateObjectPath']['string']
             event.type = 'rename'
         elif datum['type'] in REMOVE_SET:
             assert node_buffer.get(event.src, None) and node_buffer.get(event.dest, None)
@@ -123,58 +94,85 @@ def parse_event_cadets(node_buffer, datum, cdm_version):
             event.type = 'clone'
         elif datum['type'] in MPROTECT_SET:
             assert node_buffer.get(event.src, None)
-            event.dest == None
             event.type = 'mprotect'
-            event.parameters = eval(datum['properties']['map']['arg_mem_flags'])
+            event.dest = None
+            event.dest2 = None
+            event.parameters = memory_protection(eval(event.properties['protection']))
         elif datum['type'] in UPDATE_SET:
-            pdb.set_trace()
+            assert node_buffer.get(event.src, None) and node_buffer.get(event.dest, None) and node_buffer.get(event.dest2, None)
             event.type = 'update'
         elif datum['type'] in EXIT_SET:
             assert node_buffer.get(event.src, None)
             event.dest = None
             event.type = 'exit'
         else:
-            return None, node_updates
+            return None
     except AssertionError as ae:
-        return None, node_updates
+        return None 
     
-    return event, node_updates
+    return event
 
-def parse_subject_cadets(node_buffer, datum, cdm_version=18):
+def parse_subject_trace(datum, cdm_version=18):
     subject_type = datum['type']
     if subject_type == 'SUBJECT_PROCESS':
-        pname_ = datum['properties'].get('name', None)
+        type_ = datum['type']
+        pid_ = int(datum['cid'])
+        pname_ = datum['properties']['map'].get('name',None)
         parent_ = None
         ppid_ = None
         if datum['parentSubject']:
             parent_ = datum['parentSubject']['com.bbn.tc.schema.avro.cdm{}.UUID'.format(cdm_version)]
-            ppid_ = node_buffer[parent_].pid
-        cmdLine_ = datum['cmdLine']
-        subject = Subject(id=datum['uuid'], type = datum['type'], pid = datum['cid'], ppid = ppid_, parentNode = parent_, cmdLine = cmdLine_, processName=pname_)
-        subject.owner = datum['localPrincipal']
-    elif subject_type in {'SUBJECT_THREAD', 'SUBJECT_UNIT', 'SUBJECT_BASIC_BLOCK'}:
+        ppid_ = int(datum['properties']['map']['ppid'])
+        if isinstance(datum['cmdLine'],dict):
+            cmdLine_ = datum['cmdLine'].get('string')
+        else:
+            cmdLine_ = datum['cmdLine']
+        subject = Subject(id=datum['uuid'], type = type_, pid = pid_, ppid = ppid_, parentNode = parent_, cmdLine = cmdLine_, processName=pname_)
+        if isinstance(datum['localPrincipal'],dict):
+            subject.owner = datum['localPrincipal']['com.bbn.tc.schema.avro.cdm{}.UUID'.format(cdm_version)]
+        else:
+            subject.owner = datum['localPrincipal']
+        return subject
+    elif subject_type == 'SUBJECT_THREAD':
+        return None
+    elif subject_type == 'SUBJECT_UNIT':
+        return None
+    elif subject_type == 'SUBJECT_BASIC_BLOCK':
         return None
     else:
         return None
-    
-    return subject
 
-
-def parse_object_cadets(datum, object_type):
+def parse_object_trace(datum, object_type):
     object = Object(id=datum['uuid'], type = object_type)
+    if isinstance(datum['baseObject']['epoch'], dict):
+        object.epoch = datum['baseObject']['epoch']['int']
     if object_type == 'FileObject':
-        ## We ignore all other types of file
-        if datum['type'] != 'FILE_OBJECT_FILE':
-            return None
+        # object.subtype = cdm_file_object_type[datum['type']]
         object.subtype = datum['type']
-        ## Usually it is null
+        object.name = datum['baseObject']['properties']['map'].get('path',None)
         object.path = datum['baseObject']['properties']['map'].get('path', None)
-    elif object_type == 'NetFlowObject':
-        object.set_IP(datum['remoteAddress'], datum['remotePort'], None)
-    elif object_type == 'MemoryObject':
-        object.name = 'MEM_{}'.format(datum['memoryAddress'])
-    elif object_type in {'UnnamedPipeObject', 'RegistryKeyObject', 'PacketSocketObject', 'SrcSinkObject'}:
+    elif object_type == 'UnnamedPipeObject':
         return None
+    elif object_type == 'RegistryKeyObject':
+        return None
+    elif object_type == 'PacketSocketObject':
+        return None
+    elif object_type == 'NetFlowObject':
+        try:
+            object.set_IP(datum['remoteAddress'], datum['remotePort'],datum['ipProtocol']['int'])
+        except TypeError:
+            object.set_IP(datum['remoteAddress'], datum['remotePort'], None)
+    elif object_type == 'MemoryObject':
+        # object.name = 'MEM_{}'.format(datum['memoryAddress'])
+        return None
+    elif object_type == 'SrcSinkObject':
+        return None
+        # object.subtype = datum['type']
+        # permission = datum['baseObject']['permission']
+        # if object.subtype in {'SRCSINK_UNKNOWN', 'SRCSINK_IPC'}:
+        #     return None
+        # else:
+        #     print(datum)
     else:
         return None
 
