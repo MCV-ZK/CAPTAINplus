@@ -175,6 +175,7 @@ python train_by_benign.py --att 0 --decay 0 --data_path data/TH5 --data_tag th5-
 
 ### Detection (Testing)
 ```
+## You can use the parameters trained in last step, or use the pre-trained parameters from experiments/Train-TH5
 python incremental_learning.py --att 0.2 --decay 2 --ground_truth_file data/GT/groundTruthTH5.txt --data_path data/TH5 --experiment_prefix Test-TH5 --param_path experiments/Train-TH5 --model_index 99 --time_range 2019-5-10T08:00:00-04:00 2019-5-17T18:00:00-04:00
 
 ## You can detect without online learning(can serve as one of the baseline)
@@ -202,10 +203,11 @@ python train_by_benign.py --att 0 --decay 0 --data_path data/optc-train --data_t
 
 ### Detection (Testing)
 ```
-python incremental_learning.py --att 0 --decay 0 --ground_truth_file data/GT/groundTruthOPTC.txt --data_path data/optc --experiment_prefix Test-OPTC --param_path experiments/TRAIN-CAPTAIN-OPTC --model_index 99
+## You can use the parameters trained in last step, or use the pre-trained parameters from experiments/Train-OPTC
+python incremental_learning.py --att 0 --decay 0 --ground_truth_file data/GT/groundTruthOPTC.txt --data_path data/optc --experiment_prefix Test-OPTC --param_path experiments/TRAIN-OPTC --model_index 99
 
 ## You can detect without online learning(can serve as one of the baseline)
-python detection.py --att 0 --decay 0 --ground_truth_file data/GT/groundTruthOPTC.txt --data_path data/optc --experiment_prefix Test-OPTC --param_path experiments/TRAIN-CAPTAIN-OPTC --model_index 99
+python detection.py --att 0 --decay 0 --ground_truth_file data/GT/groundTruthOPTC.txt --data_path data/optc --experiment_prefix Test-OPTC --param_path experiments/TRAIN-OPTC --model_index 99
 
 ## The default parameters (without any training) can serve as one of the baseline
 python detection.py --att 0 --decay 0 --ground_truth_file data/GT/groundTruthOPTC.txt --data_path data/optc --experiment_prefix Test-OPTC
