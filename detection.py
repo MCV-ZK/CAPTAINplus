@@ -237,7 +237,6 @@ def start_experiment(args):
     # print(f"Total CPU Time Used: {user_cpu_time_used + system_cpu_time_used:.4f} seconds")                       
     mo.alarm_file.close()
     # experiment.alarm_dis = Counter(false_alarms)
-    experiment.write_captainmetrics(loaded_line)       
     experiment.print_metrics()
     experiment.save_metrics()
     ec.analyzeFile(open(os.path.join(experiment.get_experiment_output_path(), 'alarms/alarms-in-test.txt'),'r'))
