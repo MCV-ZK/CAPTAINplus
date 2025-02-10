@@ -1,7 +1,7 @@
 # CAPTAINplus: An Online, Adaptive Provenance-based Intrusion Detection System
 This is the code repository of CAPTAIN+.
 
-The code is tested on the Ubuntu 22.04.4 LTS (GNU/Linux 5.15.0-97-generic x86_64) server.
+The code is tested on the Ubuntu 22.04.3 Linux Server.
 
 ## Contents
 [Enviroment Setup](#enviroment-setup)
