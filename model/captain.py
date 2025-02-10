@@ -478,19 +478,7 @@ class CAPTAIN:
                 self.set_subject_tags(nid)
             else:
                 self.set_object_tags(nid)
-    def filtration(self,event):
-        self.testcount+=1
-        src = self.Nodes.get(event.src, None)
-        dest = self.Nodes.get(event.dest, None)
-        dest2 = self.Nodes.get(event.dest2, None)
-        event_feature = (src.get_name(),dest.get_name() if dest else None)  # 使用元组作为唯一标识        
-        if event_feature not in self.fpalarm:
-            self.fpalarm[event_feature] = True  # 标记该事件特征为已处理
-            return 1  # 第一次出现，返回 1
-        elif self.fpalarm.get(event_feature):
-            return 0  # 已经出现过，返回 0
-        
-        return 1  # 不满足任何条件，默认返回 1
+
 
     def reset(self):
         # nid_list = list(self.Nodes.keys())
