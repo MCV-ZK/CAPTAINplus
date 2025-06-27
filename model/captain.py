@@ -248,19 +248,19 @@ class CAPTAIN:
                             loss += (1-f)*(1-f)
                             gradients = (2*f-2)
 
-                        #for key in grads[i].keys():
-                            #s_labels.append((key, gradients*grads[i][key]))
-
-                        #for key in lambda_grads[i].keys():
-                            #loss_lambda_grads.append((key, gradients*lambda_grads[i][key]))
-
-                        loss_thr_grads[event_feature_str][i] = gradients*(-1)*(1-2*item)
-
                         for key in grads[i].keys():
-                            s_labels.append((key, (2*item-1)*(-1.0)*grads[i][key]))
+                            s_labels.append((key, gradients*grads[i][key]))
 
                         for key in lambda_grads[i].keys():
-                            loss_lambda_grads.append((key, (2*item-1)*(-1.0)*lambda_grads[i][key]))
+                            loss_lambda_grads.append((key, gradients*lambda_grads[i][key]))
+
+                        loss_thr_grads[event_feature_str][i] = gradients*(-1)
+
+                        #for key in grads[i].keys():
+                            #s_labels.append((key, (2*item-1)*(-1.0)*grads[i][key]))
+
+                        #for key in lambda_grads[i].keys():
+                            #loss_lambda_grads.append((key, (2*item-1)*(-1.0)*lambda_grads[i][key]))
                         
                         if i == 2 and len(src.propagation_chain['i'])>0:
                             kill_chains.append(src.propagation_chain['i'])
